@@ -112,9 +112,24 @@ function Remove-JsonComments {
   } | Out-String
   return $noLine
 }
+function Get-WT-SettingsPath {
+  # Rutas típicas (Store y no-Store)
+  $store     = Join-Path $env:LOCALAPPDATA "Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json"
+  $storePrev = Join-Path $env:LOCALAPPDATA "Packages\Microsoft.WindowsTerminalPreview_8wekyb3d8bbwe\LocalState\settings.json"
+  $unpkg     = Join-Path $env:LOCALAPPDATA "Microsoft\Windows Terminal\settings.json"
+
+  # Si existe, prioriza en este orden
+  foreach ($p in @($store, $storePrev, $unpkg)) { if (Test-Path $p) { return $p } }
+
+  # Si no existe ninguno, devuelve la ruta preferida (Store) para crearla luego
+  return $store
+}
+
 function Set-WindowsTerminalDefaultPwsh {
   [CmdletBinding()]
   param()
+
+  # 1) Detecta pwsh.exe
   $pwshCmd = Get-Command pwsh -ErrorAction SilentlyContinue
   $pwshExe = if ($pwshCmd) { $pwshCmd.Source } else {
     @(
@@ -123,64 +138,98 @@ function Set-WindowsTerminalDefaultPwsh {
     ) | Where-Object { Test-Path $_ } | Select-Object -First 1
   }
   if (-not $pwshExe) {
-    Write-Host "No encontré pwsh.exe. (Instala PS7 primero)" -ForegroundColor Yellow
+    Write-Host "No encontré pwsh.exe. (Instala PowerShell 7 primero)" -ForegroundColor Yellow
     return $false
   }
-  $settingsPath = Join-Path $env:LOCALAPPDATA "Microsoft\Windows Terminal\settings.json"
-  if (-not (Test-Path $settingsPath)) {
-    Write-Host "No encontré settings.json en: $settingsPath" -ForegroundColor Yellow
-    Write-Host "Abre Windows Terminal una vez y vuelve a ejecutar esta opción." -ForegroundColor Yellow
+
+  # 2) ¿Está instalado Windows Terminal?
+  $wt = Get-Command wt -ErrorAction SilentlyContinue
+  if (-not $wt) {
+    Write-Host "Windows Terminal no parece estar instalado (no se encontró 'wt')." -ForegroundColor Yellow
+    Write-Host "Instálalo con: winget install --id Microsoft.WindowsTerminal" -ForegroundColor Yellow
     return $false
   }
-  $bak = "$settingsPath.bak.$((Get-Date).ToString('yyyyMMddHHmmss'))"
-  try { Copy-Item $settingsPath $bak -Force } catch { }
-  Write-Host "Backup de Windows Terminal: $bak" -ForegroundColor DarkGray
-  $raw = Get-Content $settingsPath -Raw -ErrorAction Stop
-  $clean = Remove-JsonComments -JsonWithComments $raw
-  try {
-    $json = $clean | ConvertFrom-Json -ErrorAction Stop
-  } catch {
-    Write-Host "El settings.json no es JSON válido (incluso sin comentarios)." -ForegroundColor Red
-    return $false
+
+  # 3) Localiza/crea settings.json
+  $settingsPath = Get-WT-SettingsPath
+  $settingsDir  = Split-Path $settingsPath -Parent
+  if (-not (Test-Path $settingsDir)) {
+    New-Item -ItemType Directory -Path $settingsDir -Force | Out-Null
   }
-  if (-not $json.profiles) {
-    $json | Add-Member -NotePropertyName profiles -NotePropertyValue (@{}) -Force
+
+  $json = $null
+  if (Test-Path $settingsPath) {
+    # Lee + limpia comentarios
+    $raw = Get-Content $settingsPath -Raw -ErrorAction Stop
+    $clean = Remove-JsonComments -JsonWithComments $raw
+    try { $json = $clean | ConvertFrom-Json -ErrorAction Stop } catch { $json = $null }
   }
-  if (-not $json.profiles.list) {
-    $json.profiles | Add-Member -NotePropertyName list -NotePropertyValue (@()) -Force
-  }
-  $pwshProfile = $json.profiles.list | Where-Object {
-    ($_.commandline -and $_.commandline -match 'pwsh(?:\.exe)?') -or
-    ($_.name -match 'PowerShell 7')
-  } | Select-Object -First 1
-  if (-not $pwshProfile) {
-    $winps = $json.profiles.list | Where-Object { $_.name -match '^Windows PowerShell$' } | Select-Object -First 1
-    if ($winps) {
-      $winps.commandline = "`"$pwshExe`" -NoExit -NoProfile"
-      $pwshProfile = $winps
-      if (-not $pwshProfile.guid) { $pwshProfile.guid = "{"+([guid]::NewGuid().ToString())+"}" }
-      Write-Host "Perfil 'Windows PowerShell' apuntado a pwsh.exe" -ForegroundColor Green
-    } else {
-      $newGuid = "{"+([guid]::NewGuid().ToString())+"}"
-      $newProf = [PSCustomObject]@{
-        guid        = $newGuid
-        name        = "PowerShell 7"
-        commandline = "`"$pwshExe`" -NoExit -NoProfile"
-        hidden      = $false
+
+  if (-not $json) {
+    # Crear JSON mínimo
+    $newGuid = "{"+([guid]::NewGuid().ToString())+"}"
+    $json = [PSCustomObject]@{
+      "$schema"       = "https://aka.ms/terminal-profiles-schema"
+      defaultProfile  = $newGuid
+      profiles        = [PSCustomObject]@{
+        list = @(
+          [PSCustomObject]@{
+            guid        = $newGuid
+            name        = "PowerShell 7"
+            commandline = "`"$pwshExe`" -NoExit -NoProfile"
+            hidden      = $false
+          }
+        )
       }
-      $json.profiles.list += $newProf
-      $pwshProfile = $newProf
-      Write-Host "Perfil nuevo 'PowerShell 7' creado." -ForegroundColor Green
     }
+    Write-Host "Creando settings.json mínimo para Windows Terminal..." -ForegroundColor Cyan
   } else {
-    $pwshProfile.commandline = "`"$pwshExe`" -NoExit -NoProfile"
-    if (-not $pwshProfile.guid) { $pwshProfile.guid = "{"+([guid]::NewGuid().ToString())+"}" }
+    # Asegura estructura y perfil pwsh
+    if (-not $json.profiles) { $json | Add-Member -NotePropertyName profiles -NotePropertyValue (@{}) -Force }
+    if (-not $json.profiles.list) { $json.profiles | Add-Member -NotePropertyName list -NotePropertyValue (@()) -Force }
+
+    $pwshProfile = $json.profiles.list | Where-Object {
+      ($_.commandline -and $_.commandline -match 'pwsh(?:\.exe)?') -or
+      ($_.name -match 'PowerShell 7')
+    } | Select-Object -First 1
+
+    if (-not $pwshProfile) {
+      # Reutiliza Windows PowerShell o crea nuevo
+      $winps = $json.profiles.list | Where-Object { $_.name -match '^Windows PowerShell$' } | Select-Object -First 1
+      if ($winps) {
+        $winps.commandline = "`"$pwshExe`" -NoExit -NoProfile"
+        if (-not $winps.guid) { $winps.guid = "{"+([guid]::NewGuid().ToString())+"}" }
+        $pwshProfile = $winps
+        Write-Host "Perfil 'Windows PowerShell' apuntado a pwsh.exe" -ForegroundColor Green
+      } else {
+        $newGuid = "{"+([guid]::NewGuid().ToString())+"}"
+        $newProf = [PSCustomObject]@{
+          guid        = $newGuid
+          name        = "PowerShell 7"
+          commandline = "`"$pwshExe`" -NoExit -NoProfile"
+          hidden      = $false
+        }
+        $json.profiles.list += $newProf
+        $pwshProfile = $newProf
+        Write-Host "Perfil nuevo 'PowerShell 7' creado." -ForegroundColor Green
+      }
+    } else {
+      $pwshProfile.commandline = "`"$pwshExe`" -NoExit -NoProfile"
+      if (-not $pwshProfile.guid) { $pwshProfile.guid = "{"+([guid]::NewGuid().ToString())+"}" }
+    }
+
+    $json.defaultProfile = $pwshProfile.guid
   }
-  $json.defaultProfile = $pwshProfile.guid
+
+  # 4) Backup + guardar
+  $bak = "$settingsPath.bak.$((Get-Date).ToString('yyyyMMddHHmmss'))"
+  try { if (Test-Path $settingsPath) { Copy-Item $settingsPath $bak -Force } } catch { }
   $out = $json | ConvertTo-Json -Depth 99
   Set-Content -Path $settingsPath -Value $out -Encoding UTF8
-  Write-Host "✅ Windows Terminal: perfil por omisión = PowerShell 7" -ForegroundColor Green
-  Write-Host "Cierra y vuelve a abrir Windows Terminal para ver el cambio." -ForegroundColor DarkGray
+
+  Write-Host "✅ Windows Terminal configurado. Perfil por omisión: PowerShell 7" -ForegroundColor Green
+  Write-Host "Archivo: $settingsPath" -ForegroundColor DarkGray
+  Write-Host "Cierra y vuelve a abrir Windows Terminal para aplicar los cambios." -ForegroundColor DarkGray
   return $true
 }
 $script:PaneLines   = New-Object System.Collections.ArrayList
