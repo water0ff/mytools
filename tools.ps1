@@ -1,20 +1,3 @@
-<# 
-    Script: Instalador-Apps.ps1
-    Compatibilidad: PowerShell 2.0+
-    Funciones:
-      - Elegir gestor: Chocolatey o winget
-      - Instalar gestor si falta (best-effort)
-      - Menú: Listar apps, Instalar todas, Instalar seleccionadas, Actualizar todo
-    Uso:
-      1) Ejecutar PowerShell como Administrador
-      2) Set-ExecutionPolicy Bypass -Scope Process -Force
-      3) .\Instalador-Apps.ps1
-#>
-
-# =========================
-# Utilidades (compatibles PS2)
-# =========================
-
 function Pausa {
   Write-Host ""
   $null = Read-Host "Presiona [Enter] para continuar..."
@@ -104,7 +87,6 @@ $Apps = @(
   # =========================
   @{ Nombre="Google Chrome";  ChocoId="googlechrome";            WingetId="Google.Chrome" }
   @{ Nombre="Google Drive";   ChocoId="googledrive";             WingetId="Google.Drive" }
-
   # =========================
   # Comunicaciones / Productividad
   # =========================
@@ -112,10 +94,6 @@ $Apps = @(
   @{ Nombre="TeamViewer";     ChocoId="teamviewer";              WingetId="TeamViewer.TeamViewer" }
   @{ Nombre="TeamSpeak";      ChocoId="teamspeak";               WingetId="TeamSpeakSystems.TeamSpeakClient" } # (TS5 puede diferir)
   @{ Nombre="Thunderbird ESR";ChocoId="thunderbird";             WingetId="Mozilla.Thunderbird" } # ESR/estable varía por canal
-  @{ Nombre="3CX Desktop App";ChocoId="";                        WingetId="" } # sin ID confiable en ambos gestores
-  @{ Nombre="Microsoft Office 2019 ProPlus (es-ES)"; ChocoId=""; WingetId="" } # C2R/licencia, sin ID estable
-  @{ Nombre="Microsoft Teams Meeting Add-in"; ChocoId="";        WingetId="" } # complemento de Office
-
   # =========================
   # Gaming / Launchers y utilidades
   # =========================
@@ -123,11 +101,6 @@ $Apps = @(
   @{ Nombre="EA app";         ChocoId="";                        WingetId="ElectronicArts.EADesktop" }
   @{ Nombre="MSI Afterburner";ChocoId="msiafterburner";          WingetId="Guru3D.MSIAfterburner" }
   @{ Nombre="RivaTuner Statistics Server"; ChocoId="rtss";       WingetId="TechPowerUp.RTSS" }
-  @{ Nombre="Counter-Strike 2"; ChocoId="";                      WingetId="" } # juego (Steam)
-  @{ Nombre="Battlefield 6";  ChocoId="";                        WingetId="" } # juego (EA/Steam)
-  @{ Nombre="A Way Out";      ChocoId="";                        WingetId="" } # juego (EA/Steam)
-  @{ Nombre="Football Life 2026"; ChocoId="";                    WingetId="" } # juego (terceros)
-
   # =========================
   # Multimedia / Edición y Streaming
   # =========================
@@ -138,10 +111,6 @@ $Apps = @(
   @{ Nombre="ImageMagick";    ChocoId="imagemagick.app";         WingetId="ImageMagick.ImageMagick" }
   @{ Nombre="FFmpeg";         ChocoId="ffmpeg";                  WingetId="FFmpeg.FFmpeg" }
   @{ Nombre="yt-dlp";         ChocoId="yt-dlp";                  WingetId="yt-dlp.yt-dlp" }
-  @{ Nombre="Native Instruments Guitar Rig 7"; ChocoId="";       WingetId="" } # sin ID confiable
-  @{ Nombre="VEGAS Pro 21";   ChocoId="";                        WingetId="" } # versiones/licencias varían
-  @{ Nombre="Universal Control (PreSonus)"; ChocoId="";          WingetId="" } # puede existir como PreSonus.UniversalControl en algunos equipos
-
   # =========================
   # Desarrollo / Herramientas y Virtualización
   # =========================
@@ -150,49 +119,45 @@ $Apps = @(
   @{ Nombre="PowerShell 7 (x64)"; ChocoId="powershell-core";     WingetId="Microsoft.PowerShell" }
   @{ Nombre="VirtualBox";     ChocoId="virtualbox";              WingetId="Oracle.VirtualBox" }
   @{ Nombre="Tesseract OCR";  ChocoId="tesseract";               WingetId="tesseract-ocr.tesseract" }
-
   # =========================
   # Utilidades del sistema / Archivo
   # =========================
   @{ Nombre="7-Zip";          ChocoId="7zip";                    WingetId="7zip.7zip" }
-  @{ Nombre="megatools";      ChocoId="megatools";               WingetId="" } # sin ID oficial en winget
-
-  # =========================
-  # Impresoras / Drivers / Suite de fabricante
-  # =========================
-  @{ Nombre="Brother MFL-Pro Suite DCP-7055W"; ChocoId="";       WingetId="" }
-  @{ Nombre="AMD Chipset Software";            ChocoId="";       WingetId="" } # suele instalarse desde fabricante
-  @{ Nombre="AMD Software (Radeon)";           ChocoId="";       WingetId="" }
-
   # =========================
   # Runtimes de alto impacto (.NET)
   # =========================
   @{ Nombre=".NET Framework 4.8";              ChocoId="dotnetfx";                     WingetId="Microsoft.DotNet.Framework.4.8" }
   @{ Nombre=".NET Desktop Runtime 9 (x64)";    ChocoId="dotnet-9.0-desktopruntime";    WingetId="Microsoft.DotNet.DesktopRuntime.9" }
   @{ Nombre=".NET Desktop Runtime 8 (x64)";    ChocoId="dotnet-desktopruntime";        WingetId="Microsoft.DotNet.DesktopRuntime.8" }
-  @{ Nombre=".NET Framework 3.5 (Windows Feature)"; ChocoId="DotNet3.5";              WingetId="" } # winget no gestiona esta característica
 )
-
-
-# =========================
-# Operaciones por gestor
-# =========================
-
 function Choco-Listar {
   Write-Host "`nCatálogo disponible (Chocolatey IDs):`n" -ForegroundColor Cyan
-  $i = 1
-  foreach ($a in $Apps) {
-    Write-Host ("[{0}] {1}  ->  {2}" -f $i, $a.Nombre, $a.ChocoId)
-    $i++
+  $half = [math]::Ceiling($Apps.Count / 2)
+  for ($i = 0; $i -lt $half; $i++) {
+    $leftIndex  = $i
+    $rightIndex = $i + $half
+    $leftText = "[{0,2}] {1,-30} -> {2,-25}" -f ($leftIndex + 1), $Apps[$leftIndex].Nombre, $Apps[$leftIndex].ChocoId
+    if ($rightIndex -lt $Apps.Count) {
+      $rightText = "[{0,2}] {1,-30} -> {2}" -f ($rightIndex + 1), $Apps[$rightIndex].Nombre, $Apps[$rightIndex].ChocoId
+    } else {
+      $rightText = ""
+    }
+    Write-Host ($leftText + "   " + $rightText)
   }
 }
-
 function Winget-Listar {
   Write-Host "`nCatálogo disponible (winget IDs):`n" -ForegroundColor Cyan
-  $i = 1
-  foreach ($a in $Apps) {
-    Write-Host ("[{0}] {1}  ->  {2}" -f $i, $a.Nombre, $a.WingetId)
-    $i++
+  $half = [math]::Ceiling($Apps.Count / 2)
+  for ($i = 0; $i -lt $half; $i++) {
+    $leftIndex  = $i
+    $rightIndex = $i + $half
+    $leftText = "[{0,2}] {1,-30} -> {2,-30}" -f ($leftIndex + 1), $Apps[$leftIndex].Nombre, $Apps[$leftIndex].WingetId
+    if ($rightIndex -lt $Apps.Count) {
+      $rightText = "[{0,2}] {1,-30} -> {2}" -f ($rightIndex + 1), $Apps[$rightIndex].Nombre, $Apps[$rightIndex].WingetId
+    } else {
+      $rightText = ""
+    }
+    Write-Host ($leftText + "   " + $rightText)
   }
 }
 function Choco-Instalar { param([string[]]$ids)
@@ -219,11 +184,6 @@ function Winget-ActualizarTodo {
   cmd /c "winget source update"
   cmd /c "winget upgrade --all --accept-package-agreements --accept-source-agreements --silent"
 }
-
-# =========================
-# Menú principal
-# =========================
-
 function Elegir-Gestor {
   cls
   Write-Host "====================================="
@@ -333,11 +293,9 @@ function Menu-Acciones {
     }
   }
 }
-
 # =========================
 # Flujo principal
 # =========================
-
 while ($true) {
   $gestor = Elegir-Gestor
   if (-not $gestor) { break }
