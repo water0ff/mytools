@@ -11,12 +11,10 @@ function Mostrar-VersionPS {
     $ver = $host.Version
     $ed  = "Desktop"
   }
-
   Write-Host ""
   Write-Host "=====================================" -ForegroundColor Cyan
   Write-Host ("  PowerShell actual : {0}  ({1})" -f $ver, $ed) -ForegroundColor Cyan
   Write-Host "=====================================" -ForegroundColor Cyan
-
   if ($ver.Major -le 2) {
     Write-Host "Estás en PowerShell 2.x (muy antiguo). Te conviene instalar PowerShell 7 y, si usas módulos legados, considerar Windows PowerShell 5.1." -ForegroundColor Yellow
   }
@@ -24,14 +22,12 @@ function Mostrar-VersionPS {
 Mostrar-VersionPS
 function Actualizar-PowerShell {
   param([string]$gestor)
-
   Write-Host ""
   Write-Host "Actualización de PowerShell:" -ForegroundColor Green
   Write-Host "  1) Instalar/Actualizar PowerShell 7 (recomendado, side-by-side)"
   Write-Host "  2) Información para Windows PowerShell 5.1 (WMF 5.1)"
   Write-Host "  0) Volver"
   $opc = Read-Host "Opción"
-
   if ($opc -eq "1") {
     if ($gestor -eq "choco") {
       Choco-Instalar -ids @("powershell-core")
@@ -39,10 +35,19 @@ function Actualizar-PowerShell {
       Winget-Instalar -ids @("Microsoft.PowerShell")
     } else {
       Write-Host "Gestor desconocido. Usa Chocolatey o winget." -ForegroundColor Yellow
+      return
+    }
+    try {
+      if (Set-WindowsTerminalDefaultPwsh) {
+        Write-Host "PS7 quedó como predeterminado en Windows Terminal." -ForegroundColor Green
+      } else {
+        Write-Host "No se pudo establecer PS7 como predeterminado en Windows Terminal (ver mensajes arriba)." -ForegroundColor Yellow
+      }
+    } catch {
+      Write-Host "Ocurrió un error al configurar Windows Terminal: $($_.Exception.Message)" -ForegroundColor Yellow
     }
     return
   }
-
   if ($opc -eq "2") {
     Write-Host ""
     Write-Host "Windows PowerShell 5.1 es la última versión de la rama clásica." -ForegroundColor Cyan
@@ -56,60 +61,132 @@ function Actualizar-PowerShell {
     Pausa
     return
   }
-
   return
 }
-
 function Pausa {
   Write-Host ""
   $null = Read-Host "Presiona [Enter] para continuar..."
 }
-
 function EsAdmin {
   $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
   $principal   = New-Object Security.Principal.WindowsPrincipal($currentUser)
   return $principal.IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)
 }
-
 if (-not (EsAdmin)) {
   Write-Host "Este script requiere ejecutar PowerShell como **Administrador**." -ForegroundColor Yellow
   Pausa
   return
 }
-
 function TryEnable-TLS {
-  # En PS 2.0 no existe Tls12; probamos opciones disponibles.
   try {
-    # Si existe el tipo, lo ajustamos; en .NET viejas puede fallar silenciosamente.
     [void][System.Net.ServicePointManager]::SecurityProtocol
     $proto = [System.Net.ServicePointManager]::SecurityProtocol
-    # Intento agregar Tls si no está
     if (($proto -band [Net.SecurityProtocolType]::Tls) -eq 0) {
       [System.Net.ServicePointManager]::SecurityProtocol = $proto -bor [Net.SecurityProtocolType]::Tls
     }
   } catch { }
 }
-
 function Get-Exe {
   param([string]$name)
   $paths = $env:PATH -split ';'
   foreach ($p in $paths) {
     $candidate = Join-Path $p $name
     if (Test-Path $candidate) { return $candidate }
-    # también probamos con .exe
     $candidate = Join-Path $p ($name + ".exe")
     if (Test-Path $candidate) { return $candidate }
   }
   return $null
 }
-# =========================
-# Panel de Progreso en Consola (PS 2.0+)
-# =========================
+function Remove-JsonComments {
+  param([Parameter(Mandatory=$true)][string]$JsonWithComments)
+  $noBlock = [regex]::Replace($JsonWithComments, '/\*.*?\*/', '', 'Singleline')
+  $noLine  = $noBlock -split "`n" | ForEach-Object {
+    $line = $_
+    if ($line -match '^\s*//') { '' }
+    else {
+      $idx = $line.IndexOf('//')
+      if ($idx -ge 0 -and ($line.Substring(0,$idx) -notmatch 'https?:$')) {
+        $line.Substring(0,$idx)
+      } else { $line }
+    }
+  } | Out-String
+  return $noLine
+}
+function Set-WindowsTerminalDefaultPwsh {
+  [CmdletBinding()]
+  param()
+  $pwshCmd = Get-Command pwsh -ErrorAction SilentlyContinue
+  $pwshExe = if ($pwshCmd) { $pwshCmd.Source } else {
+    @(
+      "$env:ProgramFiles\PowerShell\7\pwsh.exe",
+      "$env:ProgramFiles(x86)\PowerShell\7\pwsh.exe"
+    ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+  }
+  if (-not $pwshExe) {
+    Write-Host "No encontré pwsh.exe. (Instala PS7 primero)" -ForegroundColor Yellow
+    return $false
+  }
+  $settingsPath = Join-Path $env:LOCALAPPDATA "Microsoft\Windows Terminal\settings.json"
+  if (-not (Test-Path $settingsPath)) {
+    Write-Host "No encontré settings.json en: $settingsPath" -ForegroundColor Yellow
+    Write-Host "Abre Windows Terminal una vez y vuelve a ejecutar esta opción." -ForegroundColor Yellow
+    return $false
+  }
+  $bak = "$settingsPath.bak.$((Get-Date).ToString('yyyyMMddHHmmss'))"
+  try { Copy-Item $settingsPath $bak -Force } catch { }
+  Write-Host "Backup de Windows Terminal: $bak" -ForegroundColor DarkGray
+  $raw = Get-Content $settingsPath -Raw -ErrorAction Stop
+  $clean = Remove-JsonComments -JsonWithComments $raw
+  try {
+    $json = $clean | ConvertFrom-Json -ErrorAction Stop
+  } catch {
+    Write-Host "El settings.json no es JSON válido (incluso sin comentarios)." -ForegroundColor Red
+    return $false
+  }
+  if (-not $json.profiles) {
+    $json | Add-Member -NotePropertyName profiles -NotePropertyValue (@{}) -Force
+  }
+  if (-not $json.profiles.list) {
+    $json.profiles | Add-Member -NotePropertyName list -NotePropertyValue (@()) -Force
+  }
+  $pwshProfile = $json.profiles.list | Where-Object {
+    ($_.commandline -and $_.commandline -match 'pwsh(?:\.exe)?') -or
+    ($_.name -match 'PowerShell 7')
+  } | Select-Object -First 1
+  if (-not $pwshProfile) {
+    $winps = $json.profiles.list | Where-Object { $_.name -match '^Windows PowerShell$' } | Select-Object -First 1
+    if ($winps) {
+      $winps.commandline = "`"$pwshExe`" -NoExit -NoProfile"
+      $pwshProfile = $winps
+      if (-not $pwshProfile.guid) { $pwshProfile.guid = "{"+([guid]::NewGuid().ToString())+"}" }
+      Write-Host "Perfil 'Windows PowerShell' apuntado a pwsh.exe" -ForegroundColor Green
+    } else {
+      $newGuid = "{"+([guid]::NewGuid().ToString())+"}"
+      $newProf = [PSCustomObject]@{
+        guid        = $newGuid
+        name        = "PowerShell 7"
+        commandline = "`"$pwshExe`" -NoExit -NoProfile"
+        hidden      = $false
+      }
+      $json.profiles.list += $newProf
+      $pwshProfile = $newProf
+      Write-Host "Perfil nuevo 'PowerShell 7' creado." -ForegroundColor Green
+    }
+  } else {
+    $pwshProfile.commandline = "`"$pwshExe`" -NoExit -NoProfile"
+    if (-not $pwshProfile.guid) { $pwshProfile.guid = "{"+([guid]::NewGuid().ToString())+"}" }
+  }
+  $json.defaultProfile = $pwshProfile.guid
+  $out = $json | ConvertTo-Json -Depth 99
+  Set-Content -Path $settingsPath -Value $out -Encoding UTF8
+  Write-Host "✅ Windows Terminal: perfil por omisión = PowerShell 7" -ForegroundColor Green
+  Write-Host "Cierra y vuelve a abrir Windows Terminal para ver el cambio." -ForegroundColor DarkGray
+  return $true
+}
 $script:PaneLines   = New-Object System.Collections.ArrayList
 $script:PaneTopRow  = 0
 $script:PaneHeight  = 12
 $script:PaneWidth   = 80
-
 function UI-GetWidth {
   try { return [System.Console]::WindowWidth } catch { return 100 }
 }
@@ -120,34 +197,25 @@ function UI-WriteAt([int]$col,[int]$row,[string]$text) {
   try { [System.Console]::SetCursorPosition([Math]::Max(0,$col), [Math]::Max(0,$row)) } catch { }
   Write-Host ($text.PadRight($script:PaneWidth)) -NoNewline
 }
-
 function UI-InitProgress([string]$titulo) {
-  # Calcula dimensiones y reserva el panel inferior sin limpiar el encabezado.
   $script:PaneWidth  = [Math]::Max(40, (UI-GetWidth))
   $totalH            = (UI-GetHeight)
   $minPanel          = 8     # alto mínimo de panel
   $script:PaneHeight = [Math]::Max($minPanel, [Math]::Min(18, [int]($totalH * 0.45)))
   $script:PaneTopRow = $totalH - $script:PaneHeight
-
-  # Dibuja marco del panel
   $sep = ("-" * $script:PaneWidth)
   UI-WriteAt 0 ($script:PaneTopRow)       $sep
   UI-WriteAt 0 ($script:PaneTopRow + 1)   (" Progreso: " + $titulo).PadRight($script:PaneWidth)
   UI-WriteAt 0 ($script:PaneTopRow + 2)   $sep
-
-  # Limpia el área del panel
   $script:PaneLines.Clear() | Out-Null
   for ($r = 3; $r -lt $script:PaneHeight; $r++) {
     UI-WriteAt 0 ($script:PaneTopRow + $r) ""
   }
 }
-
 function UI-RefreshProgress {
   $visible = $script:PaneHeight - 3
   $start   = [Math]::Max(0, $script:PaneLines.Count - $visible)
   $slice   = $script:PaneLines[$start..($script:PaneLines.Count-1)] 2>$null
-
-  # Vuelve a pintar el bloque de líneas del panel
   $row = $script:PaneTopRow + 3
   foreach ($line in $slice) {
     $txt = ($line -replace "`r","")
@@ -155,18 +223,15 @@ function UI-RefreshProgress {
     UI-WriteAt 0 $row $txt
     $row++
   }
-  # Rellena espacios si sobran renglones
   while ($row -lt ($script:PaneTopRow + $script:PaneHeight)) {
     UI-WriteAt 0 $row ""
     $row++
   }
 }
-
 function UI-ProgressLine([string]$text) {
   [void]$script:PaneLines.Add($text)
   UI-RefreshProgress
 }
-
 function Run-WithProgress {
   param(
     [Parameter(Mandatory=$true)][string]$Title,
@@ -174,22 +239,15 @@ function Run-WithProgress {
   )
   UI-InitProgress $Title
   UI-ProgressLine ">>> $Title"
-  # Ejecuta y captura salida/errores en tiempo real dentro del panel
   cmd /c $Command 2>&1 | ForEach-Object { UI-ProgressLine $_ }
   UI-ProgressLine "<<< FIN: $Title"
 }
-# =========================
-# Verificación / Instalación de gestores
-# =========================
-
 function Existe-Choco { return [bool](Get-Exe "choco") }
 function Existe-Winget { return [bool](Get-Exe "winget") }
-
 function Instalar-Choco {
   Write-Host "Instalando Chocolatey..." -ForegroundColor Cyan
   TryEnable-TLS
   try {
-    # Instalador oficial simplificado compatible con PS 2.0
     $wc = New-Object System.Net.WebClient
     $wc.Headers.Add("user-agent","Mozilla/5.0")
     $script = $wc.DownloadString("https://community.chocolatey.org/install.ps1")
@@ -202,12 +260,10 @@ function Instalar-Choco {
     Pausa
   }
 }
-
 function Instalar-Winget {
   Write-Host "Instalar winget requiere Windows 10/11 y Microsoft Store (App Installer)." -ForegroundColor Yellow
   Write-Host "Intentaré abrir la página de App Installer en la Microsoft Store..." -ForegroundColor Cyan
   try {
-    # Abre la Store para App Installer (winget) - el usuario solo debe pulsar "Obtener/Instalar"
     Start-Process "ms-windows-store://pdp/?productid=9NBLGGH4NNS1" | Out-Null
     Write-Host "Cuando finalice la instalación de 'App Installer', vuelve a ejecutar este script." -ForegroundColor Green
   } catch {
@@ -299,14 +355,12 @@ function Winget-Listar {
 function Choco-Instalar { param([string[]]$ids)
   foreach ($id in $ids) {
     if ([string]::IsNullOrEmpty($id)) { continue }
-    # Mostrar progreso en panel inferior
     Run-WithProgress -Title "Chocolatey: instalando $id" -Command "choco install $id -y"
   }
 }
 function Winget-Instalar { param([string[]]$ids)
   foreach ($id in $ids) {
     if ([string]::IsNullOrEmpty($id)) { continue }
-    # --accept-* mantiene no-interactividad; sin --silent para ver output
     Run-WithProgress -Title "winget: instalando $id" -Command "winget install --id `"$id`" --accept-package-agreements --accept-source-agreements --disable-interactivity"
   }
 }
@@ -314,7 +368,6 @@ function Choco-ActualizarTodo {
   Run-WithProgress -Title "Chocolatey: actualizar TODO" -Command "choco upgrade all -y"
 }
 function Winget-ActualizarTodo {
-  # Mostramos también la actualización del origen, todo en el panel
   Run-WithProgress -Title "winget: actualizar orígenes" -Command "winget source update"
   Run-WithProgress -Title "winget: upgrade --all" -Command "winget upgrade --all --accept-package-agreements --accept-source-agreements --disable-interactivity"
 }
@@ -322,21 +375,18 @@ function Elegir-Gestor {
   Write-Host "====================================="
   Write-Host "  Instalador de Aplicaciones (PS2.0) "
   Write-Host "====================================="
-
   Write-Host ""
   Write-Host "Elige el gestor de paquetes:"
   Write-Host "  1) Chocolatey"
   Write-Host "  2) winget"
   Write-Host "  0) Salir"
   $op = Read-Host "Opción"
-
   if ($op -eq "1") { return "choco" }
   if ($op -eq "2") { return "winget" }
   if ($op -eq "0") { return $null }
   Write-Host "Opción no válida." -ForegroundColor Yellow
   return (Elegir-Gestor)
 }
-
 function Asegurar-Gestor {
   param([string]$gestor)
 
@@ -359,10 +409,8 @@ function Asegurar-Gestor {
   }
   return $false
 }
-
 function Menu-Acciones {
   param([string]$gestor)
-
   while ($true) {
   cls
     Write-Host "`nGestor activo: $gestor" -ForegroundColor Green
@@ -381,7 +429,6 @@ function Menu-Acciones {
       Pausa
     }
     elseif ($acc -eq "2") {
-      # Instalar todas
       $ids = @()
       foreach ($a in $Apps) {
         if ($gestor -eq "choco") { $ids += $a.ChocoId } else { $ids += $a.WingetId }
@@ -390,7 +437,6 @@ function Menu-Acciones {
       Pausa
     }
     elseif ($acc -eq "3") {
-      # Instalar seleccionadas por número separado por comas
       if ($gestor -eq "choco") { Choco-Listar } else { Winget-Listar }
       $sel = Read-Host "Escribe los números separados por coma (ej. 1,3,5)"
       $nums = $sel -split "," | ForEach-Object { $_.Trim() } | Where-Object { $_ -match '^\d+$' }
@@ -431,9 +477,6 @@ function Menu-Acciones {
     }
   }
 }
-# =========================
-# Flujo principal
-# =========================
 while ($true) {
   $gestor = Elegir-Gestor
   if (-not $gestor) { break }
@@ -442,10 +485,8 @@ while ($true) {
     Pausa
     continue
   }
-
   $res = Menu-Acciones $gestor
   if ($res -eq "salir") { break }
   if ($res -eq "cambiar") { continue }
 }
-
 Write-Host "`n¡Listo! Gracias por usar el instalador." -ForegroundColor Green
