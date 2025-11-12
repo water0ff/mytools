@@ -1,3 +1,4 @@
+cls
 function Mostrar-VersionPS {
   try {
     if ($PSVersionTable) {
