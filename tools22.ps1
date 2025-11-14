@@ -128,6 +128,8 @@ function Get-WT-SettingsPath {
 function Set-WindowsTerminalDefaultPwsh {
   [CmdletBinding()]
   param()
+
+  # 1) Localizar pwsh.exe
   $pwshCmd = Get-Command pwsh -ErrorAction SilentlyContinue
   $pwshExe = if ($pwshCmd) {
     $pwshCmd.Source
@@ -137,31 +139,46 @@ function Set-WindowsTerminalDefaultPwsh {
       "$env:ProgramFiles(x86)\PowerShell\7\pwsh.exe"
     ) | Where-Object { Test-Path $_ } | Select-Object -First 1
   }
+
   if (-not $pwshExe) {
     Write-Host "No encontré pwsh.exe. (Instala PowerShell 7 primero)" -ForegroundColor Yellow
     return $false
   }
+
+  # 2) Verificar Windows Terminal
   $wt = Get-Command wt -ErrorAction SilentlyContinue
   if (-not $wt) {
     Write-Host "Windows Terminal no parece estar instalado (no se encontró 'wt')." -ForegroundColor Yellow
     Write-Host "Instálalo con: winget install --id Microsoft.WindowsTerminal" -ForegroundColor Yellow
     return $false
   }
+
+  # 3) Ruta de settings.json
   $settingsPath = Get-WT-SettingsPath
   $settingsDir  = Split-Path $settingsPath -Parent
   if (-not (Test-Path $settingsDir)) {
     New-Item -ItemType Directory -Path $settingsDir -Force | Out-Null
   }
+
+  # 4) Intentar leer settings.json existente
   $json = $null
   if (Test-Path $settingsPath) {
-    $raw   = Get-Content $settingsPath -Raw -ErrorAction Stop
-    $clean = Remove-JsonComments -JsonWithComments $raw
     try {
-      $json = $clean | ConvertFrom-Json -ErrorAction Stop
+      $raw   = Get-Content $settingsPath -Raw -ErrorAction Stop
+      $clean = Remove-JsonComments -JsonWithComments $raw
+      $tmp   = $clean | ConvertFrom-Json -ErrorAction Stop
+
+      # Solo usamos el JSON existente si tiene 'profiles'
+      if ($tmp -and $tmp.profiles) {
+        $json = $tmp
+      }
     } catch {
+      Write-Host "Advertencia: settings.json actual no se pudo leer/parsear, se generará uno nuevo." -ForegroundColor Yellow
       $json = $null
     }
   }
+
+  # 5) Si no hay JSON usable, crear uno mínimo
   if (-not $json) {
     $newGuid = "{"+([guid]::NewGuid().ToString())+"}"
     $json = [PSCustomObject]@{
@@ -181,44 +198,30 @@ function Set-WindowsTerminalDefaultPwsh {
     Write-Host "Creando settings.json mínimo para Windows Terminal..." -ForegroundColor Cyan
   }
   else {
-    if (-not $json.PSObject.Properties['profiles']) {
-      $json | Add-Member -NotePropertyName profiles -NotePropertyValue (
-        [pscustomobject]@{
-          list = @()
-        }
-      ) -Force
+    # 6) Asegurar estructura profiles.list como array
+    if (-not $json.profiles) {
+      $json | Add-Member -NotePropertyName profiles -NotePropertyValue ([PSCustomObject]@{ list = @() }) -Force
     }
-    if ($json.profiles -is [System.Collections.IEnumerable] -and
-        -not ($json.profiles -is [string]) -and
-        -not $json.profiles.PSObject.Properties['list']) {
 
-      $json.profiles = [pscustomobject]@{
-        list = @($json.profiles)
-      }
-    }
-    if ($json.profiles -isnot [pscustomobject] -and
-        $json.profiles -is [System.Collections.IDictionary]) {
-      $ht = @{}
-      foreach ($k in $json.profiles.Keys) {
-        $ht[$k] = $json.profiles[$k]
-      }
-      $json.profiles = [pscustomobject]$ht   # <- conversión segura
-    }
-    if (-not $json.profiles.PSObject.Properties['list']) {
+    if (-not $json.profiles.list) {
       $json.profiles | Add-Member -NotePropertyName list -NotePropertyValue @() -Force
     }
-    else {
-      if ($null -ne $json.profiles.list -and -not ($json.profiles.list -is [System.Collections.IList])) {
-        $json.profiles.list = @($json.profiles.list)
-      }
+
+    if ($json.profiles.list -isnot [System.Collections.IList]) {
+      $json.profiles.list = @($json.profiles.list)
     }
-    $pwshProfile = $json.profiles.list | Where-Object {
+
+    $profilesList = $json.profiles.list
+
+    # 7) Buscar perfil que ya use pwsh o se llame "PowerShell 7"
+    $pwshProfile = $profilesList | Where-Object {
       ($_.commandline -and $_.commandline -match 'pwsh(?:\.exe)?') -or
       ($_.name -match 'PowerShell 7')
     } | Select-Object -First 1
-    if (-not $pwshProfile) {
-      $winps = $json.profiles.list | Where-Object { $_.name -match '^Windows PowerShell$' } | Select-Object -First 1
 
+    if (-not $pwshProfile) {
+      # Reusar "Windows PowerShell" si existe
+      $winps = $profilesList | Where-Object { $_.name -eq 'Windows PowerShell' } | Select-Object -First 1
       if ($winps) {
         $winps.commandline = "`"$pwshExe`" -NoExit -NoProfile"
         if (-not $winps.guid) { $winps.guid = "{"+([guid]::NewGuid().ToString())+"}" }
@@ -226,6 +229,7 @@ function Set-WindowsTerminalDefaultPwsh {
         Write-Host "Perfil 'Windows PowerShell' apuntado a pwsh.exe" -ForegroundColor Green
       }
       else {
+        # Crear perfil nuevo
         $newGuid = "{"+([guid]::NewGuid().ToString())+"}"
         $newProf = [PSCustomObject]@{
           guid        = $newGuid
@@ -239,21 +243,28 @@ function Set-WindowsTerminalDefaultPwsh {
       }
     }
     else {
+      # Asegurar que apunta al pwsh correcto
       $pwshProfile.commandline = "`"$pwshExe`" -NoExit -NoProfile"
       if (-not $pwshProfile.guid) {
         $pwshProfile.guid = "{"+([guid]::NewGuid().ToString())+"}"
       }
     }
+
+    # 8) Establecer defaultProfile
     $json.defaultProfile = $pwshProfile.guid
   }
+
+  # 9) Respaldar y guardar settings.json
   $bak = "$settingsPath.bak.$((Get-Date).ToString('yyyyMMddHHmmss'))"
   try {
     if (Test-Path $settingsPath) {
       Copy-Item $settingsPath $bak -Force
     }
   } catch { }
+
   $out = $json | ConvertTo-Json -Depth 99
   Set-Content -Path $settingsPath -Value $out -Encoding UTF8
+
   Write-Host "✅ Windows Terminal configurado. Perfil por omisión: PowerShell 7" -ForegroundColor Green
   Write-Host "Archivo: $settingsPath" -ForegroundColor DarkGray
   Write-Host "Cierra y vuelve a abrir Windows Terminal para aplicar los cambios." -ForegroundColor DarkGray
@@ -468,7 +479,7 @@ function Winget-ActualizarTodo {
   Run-WithProgress -Title "winget: upgrade --all" -Command "winget upgrade --all --accept-package-agreements --accept-source-agreements --disable-interactivity"
 }
 function Elegir-Gestor {
-  Write-Host "==============1======================"
+  Write-Host "==============r02===================="
   Write-Host "  Instalador de Aplicaciones (PS2.0) "
   Write-Host "====================================="
   Write-Host ""
