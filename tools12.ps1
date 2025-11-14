@@ -125,12 +125,9 @@ function Get-WT-SettingsPath {
   # Si no existe ninguno, devuelve la ruta preferida (Store) para crearla luego
   return $store
 }
-
 function Set-WindowsTerminalDefaultPwsh {
   [CmdletBinding()]
   param()
-
-  # 1) Detecta pwsh.exe
   $pwshCmd = Get-Command pwsh -ErrorAction SilentlyContinue
   $pwshExe = if ($pwshCmd) { $pwshCmd.Source } else {
     @(
@@ -142,32 +139,24 @@ function Set-WindowsTerminalDefaultPwsh {
     Write-Host "No encontré pwsh.exe. (Instala PowerShell 7 primero)" -ForegroundColor Yellow
     return $false
   }
-
-  # 2) ¿Está instalado Windows Terminal?
   $wt = Get-Command wt -ErrorAction SilentlyContinue
   if (-not $wt) {
     Write-Host "Windows Terminal no parece estar instalado (no se encontró 'wt')." -ForegroundColor Yellow
     Write-Host "Instálalo con: winget install --id Microsoft.WindowsTerminal" -ForegroundColor Yellow
     return $false
   }
-
-  # 3) Localiza/crea settings.json
   $settingsPath = Get-WT-SettingsPath
   $settingsDir  = Split-Path $settingsPath -Parent
   if (-not (Test-Path $settingsDir)) {
     New-Item -ItemType Directory -Path $settingsDir -Force | Out-Null
   }
-
   $json = $null
   if (Test-Path $settingsPath) {
-    # Lee + limpia comentarios
     $raw = Get-Content $settingsPath -Raw -ErrorAction Stop
     $clean = Remove-JsonComments -JsonWithComments $raw
     try { $json = $clean | ConvertFrom-Json -ErrorAction Stop } catch { $json = $null }
   }
-
   if (-not $json) {
-    # Crear JSON mínimo
     $newGuid = "{"+([guid]::NewGuid().ToString())+"}"
     $json = [PSCustomObject]@{
       "$schema"       = "https://aka.ms/terminal-profiles-schema"
@@ -184,11 +173,26 @@ function Set-WindowsTerminalDefaultPwsh {
       }
     }
     Write-Host "Creando settings.json mínimo para Windows Terminal..." -ForegroundColor Cyan
-  } else {
-    # Asegura estructura y perfil pwsh
-    if (-not $json.profiles) { $json | Add-Member -NotePropertyName profiles -NotePropertyValue (@{}) -Force }
-    if (-not $json.profiles.list) { $json.profiles | Add-Member -NotePropertyName list -NotePropertyValue (@()) -Force }
-
+    } else {
+    if (-not $json.PSObject.Properties['profiles']) {
+      $json | Add-Member -NotePropertyName profiles -NotePropertyValue (
+        [pscustomobject]@{
+          list = @()
+        }
+      ) -Force
+    } else {
+      if ($json.profiles -isnot [pscustomobject]) {
+        $json.profiles = [pscustomobject]$json.profiles
+      }
+      if (-not $json.profiles.PSObject.Properties['list']) {
+        $json.profiles | Add-Member -NotePropertyName list -NotePropertyValue @() -Force
+      }
+      else {
+        if ($null -ne $json.profiles.list -and -not ($json.profiles.list -is [System.Collections.IList])) {
+          $json.profiles.list = @($json.profiles.list)
+        }
+      }
+    }
     $pwshProfile = $json.profiles.list | Where-Object {
       ($_.commandline -and $_.commandline -match 'pwsh(?:\.exe)?') -or
       ($_.name -match 'PowerShell 7')
