@@ -295,21 +295,41 @@ function Run-WithProgress {
 function Existe-Choco { return [bool](Get-Exe "choco") }
 function Existe-Winget { return [bool](Get-Exe "winget") }
 function Instalar-Choco {
-  Write-Host "Instalando Chocolatey..." -ForegroundColor Cyan
-  TryEnable-TLS
-  try {
-    $wc = New-Object System.Net.WebClient
-    $wc.Headers.Add("user-agent","Mozilla/5.0")
-    $script = $wc.DownloadString("https://community.chocolatey.org/install.ps1")
-    Invoke-Expression $script
-    Write-Host "Chocolatey instalado (si no hubo errores). Cierra y abre una nueva consola si no se reconoce 'choco'." -ForegroundColor Green
-  } catch {
-    Write-Host "No se pudo descargar el instalador de Chocolatey desde HTTPS (posible TLS antiguo)." -ForegroundColor Yellow
-    Write-Host "Alternativa: ejecuta manualmente (en una consola con Internet):" -ForegroundColor Yellow
-    Write-Host '  @"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command "iex ((new-object net.webclient).DownloadString(''https://community.chocolatey.org/install.ps1''))" && SET "PATH=%PATH%;%ALLUSERSPROFILE%\chocolatey\bin"' -ForegroundColor Gray
-    Pausa
-  }
+    Write-Host "`nInstalando Chocolatey..." -ForegroundColor Cyan
+
+    # Si ya existe, no hacemos nada
+    if (Get-Command choco -ErrorAction SilentlyContinue) {
+        Write-Host "Chocolatey ya está instalado." -ForegroundColor Green
+        return
+    }
+
+    try {
+        # Asegurar ejecución y TLS 1.2+
+        Set-ExecutionPolicy Bypass -Scope Process -Force
+        [System.Net.ServicePointManager]::SecurityProtocol = `
+            [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+
+        # Descargar e instalar Chocolatey
+        iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+
+        Write-Host "`nChocolatey se instaló correctamente." -ForegroundColor Green
+
+        # Configurar cacheLocation en C:
+        Write-Host "Configurando Chocolatey (cacheLocation en C:\Choco\cache)..." -ForegroundColor Yellow
+        choco config set cacheLocation 'C:\Choco\cache' | Out-Null
+
+        Write-Host "`nChocolatey quedó instalado y configurado." -ForegroundColor Green
+        Write-Host "Si 'choco' no se reconoce, cierra y vuelve a abrir PowerShell." -ForegroundColor Yellow
+    }
+    catch {
+        Write-Host "`nNo se pudo descargar o ejecutar el instalador de Chocolatey (posible problema de TLS o red)." -ForegroundColor Yellow
+        Write-Host "Alternativa: ejecuta manualmente este comando en una consola con Internet:" -ForegroundColor Yellow
+        Write-Host '  @"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command "iex ((New-Object net.webclient).DownloadString(''https://community.chocolatey.org/install.ps1''))" && SET "PATH=%PATH%;%ALLUSERSPROFILE%\chocolatey\bin"' -ForegroundColor Gray
+        Write-Host "`nPresiona [Enter] para continuar..." -ForegroundColor DarkGray
+        [void][System.Console]::ReadLine()
+    }
 }
+
 function Instalar-Winget {
   Write-Host "Instalar winget requiere Windows 10/11 y Microsoft Store (App Installer)." -ForegroundColor Yellow
   Write-Host "Intentaré abrir la página de App Installer en la Microsoft Store..." -ForegroundColor Cyan
