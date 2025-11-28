@@ -1,86 +1,60 @@
-# Instalador de Apps para Windows (WinCho)
+# 🚀 WinCho – Instalador de Apps para Windows
 
-Pequeño instalador en PowerShell para configurar rápidamente un entorno de Windows con Chocolatey/winget y apps esenciales.
+Instalador interactivo en PowerShell para configurar rápidamente un equipo Windows usando **Chocolatey** o **winget**, con soporte incluso para **PowerShell 2.0**, detección automática de versión, barra de progreso, y actualización fácil a **PowerShell 7**.
+
+---
 
 ## 🔗 Menú
 
 - [Descripción](#-descripción)
 - [Instalación rápida](#-instalación-rápida)
-- [Uso](#-uso)
+- [Ejecutar desde archivo](#-ejecutar-desde-archivo)
+- [Uso del menú interactivo](#-uso-del-menú-interactivo)
+- [Catálogo incluido](#-catálogo-incluido)
 - [Requisitos](#-requisitos)
-- [Catálogo de aplicaciones](#-catálogo-de-aplicaciones)
 - [Notas de seguridad](#-notas-de-seguridad)
+- [Personalización](#-personalización)
+- [Roadmap](#-roadmap)
+
+---
+
+## 📌 Descripción
+
+**WinCho** es un script avanzado en PowerShell diseñado para automatizar:
+
+- Instalación de aplicaciones esenciales.
+- Actualización de software existente.
+- Configuración automática de **PowerShell 7** como predeterminado en Windows Terminal.
+- Funcionamiento incluso en **PowerShell 2.0**.
+- Soporte para **Chocolatey** y **winget**.
+- Menú visual con panel de progreso dinámico.
+
+---
 
 ## 🚀 Instalación rápida
 
-En PowerShell **como administrador**, ejecuta:
-🚀 WinCho – Instalador de Aplicaciones para Windows
+Ejecuta este comando en **PowerShell como Administrador**:
 
-Instalador interactivo en PowerShell para configurar rápidamente un equipo Windows usando Chocolatey o winget, con soporte incluso para PowerShell 2.0, detección automática de versión, barra de progreso, y actualización fácil a PowerShell 7.
-
-🔗 Menú
-
-Descripción
-
-Instalación rápida
-
-Ejecutar desde archivo
-
-Uso del menú interactivo
-
-Catálogo incluido
-
-Requisitos
-
-Notas de seguridad
-
-Personalización
-
-Roadmap
-
-📌 Descripción
-
-WinCho es un script avanzado en PowerShell diseñado para automatizar:
-
-Instalación de aplicaciones esenciales.
-
-Actualización de software existente.
-
-Configuración automática de PowerShell 7 como predeterminado en Windows Terminal.
-
-Soporte dual:
-
-Chocolatey
-
-winget
-
-Funcionamiento incluso en PowerShell 2.0 (ideal para equipos viejos o recién formateados).
-
-Menú interactivo con instalador visual y panel de progreso dinámico.
-
-🚀 Instalación rápida
-
-Ejecuta este comando en PowerShell como Administrador:
-
+powershell
 irm bit.ly/WinCho | iex
 
 
-Esto descargará y ejecutará la última versión del script directamente.
+Descargará y ejecutará la última versión del instalador.
 
 📂 Ejecutar desde archivo
 
-Descarga WinCho.ps1 desde este repositorio.
+Descarga WinCho.ps1 desde el repositorio.
 
 Abre PowerShell como Administrador.
 
-Ejecútalo:
+Ejecuta:
 
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
 .\WinCho.ps1
 
 🕹 Uso del menú interactivo
 
-Al ejecutar WinCho tendrás algo como:
+Al iniciar WinCho verás algo como:
 
 ============== r02 ====================
   Instalador de Aplicaciones (PS2.0)
@@ -92,22 +66,22 @@ Elige el gestor de paquetes:
   0) Salir
 
 
-Luego podrás:
+Luego aparece el menú de acciones:
 
 1) Listar catálogo
 2) Instalar TODO el catálogo
 3) Instalar apps seleccionadas
-4) Actualizar TODO (apps ya instaladas)
+4) Actualizar TODO (apps instaladas)
 5) Actualizar PowerShell (7 recomendado)
 9) Cambiar de gestor
 0) Salir
 
 
-El script muestra un panel visual de progreso con logs en vivo mientras instala.
+El script incluye un panel visual de progreso que muestra logs en tiempo real.
 
 📦 Catálogo incluido
 
-El catálogo $Apps trae software organizado por categorías:
+El arreglo $Apps incluye aplicaciones listas para instalar:
 
 🌐 Web / Nube
 
@@ -123,7 +97,7 @@ TeamViewer
 
 TeamSpeak
 
-Thunderbird (ESR/estable según canal)
+Thunderbird
 
 🎮 Gaming / Monitoreo
 
@@ -137,13 +111,13 @@ RivaTuner Statistics Server
 
 🎥 Multimedia / Edición / Streaming
 
-VLC media player
+VLC
 
 HandBrake
 
 OBS Studio
 
-REAPER (x64)
+REAPER
 
 ImageMagick
 
@@ -157,7 +131,7 @@ Node.js LTS
 
 Python 3.12
 
-PowerShell 7 (x64)
+PowerShell 7
 
 VirtualBox
 
@@ -173,62 +147,55 @@ Tesseract OCR
 
 .NET Desktop Runtime 8
 
-Puedes añadir o quitar apps modificando el arreglo $Apps.
-
 🧱 Requisitos
 
-Windows 10/11 (ideal).
+Windows 10/11
 
-PowerShell como administrador.
+PowerShell ejecutado como Administrador
 
-Conexión a Internet.
+Conexión a Internet
 
 Para winget:
 
-App Installer (Microsoft Store).
+App Installer instalado vía Microsoft Store
 
-Para configuración automática de Windows Terminal:
+Para configurar Windows Terminal:
 
-Windows Terminal instalado.
+Windows Terminal instalado
 
 🔐 Notas de seguridad
 
-El script no instala archivos externos directamente:
-usa Chocolatey o winget, que manejan su propia seguridad y firmas.
+El script usa Chocolatey y winget, ambos gestionan firmas y seguridad.
 
-Se crea un respaldo de settings.json de Windows Terminal antes de modificarlo.
+Se crea un respaldo de settings.json antes de modificar Windows Terminal.
 
-No se almacena ni envía información del usuario.
+No se envían datos del usuario.
 
 🛠 Personalización
 
-Puedes modificar fácilmente:
+Puedes editar fácilmente:
 
-El catálogo $Apps.
+El catálogo $Apps
 
-Los textos del menú.
+El texto de los menús
 
-La apariencia del panel de progreso.
+La lógica del panel de progreso
 
-Los instaladores disponibles (por ejemplo, añadir Scoop).
+Métodos de instalación (por ejemplo, añadir Scoop)
 
 🗺 Roadmap
 
- Exportar logs a archivo.
+ Modo silencioso
 
- Añadir verificación de versiones antes de instalar.
+ Exportar logs a archivo
 
- Modo silencioso (sin menú).
+ Verificación de versiones
 
- Añadir reinstalación y desinstalación automática.
+ Reinstalación / desinstalación automática
 
- Añadir categorías personalizadas por usuario.
+ Categorías personalizadas
 
 ❤️ Créditos
 
-Creado con PowerShell, paciencia y muchas reinstalaciones de Windows 😄
-Si te fue útil, ¡dale una estrella ⭐ al repositorio!
-
- Integrar comprobaciones de versión antes de intentar instalar.
-
- Modo “silencioso” sin preguntas, para automatizar despliegues.
+Creado con PowerShell, paciencia y muchas reinstalaciones 😄
+Si te ayudó… ¡dale estrella ⭐!
