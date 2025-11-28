@@ -820,29 +820,29 @@ function Crear-Catalogo-Desde-Instaladas {
     $conf = Ask "Esto sobrescribirá el catálogo actual. ¿Continuar? (S/N)"
     if ($conf -notmatch '^[sSyY]$') { return }
     $nuevas = @()
-        if ($gestor -eq "winget") {
-        Write-Host "Leyendo aplicaciones instaladas con winget..." -ForegroundColor Cyan
-        $raw = winget list --source winget | Select-Object -Skip 1
-        foreach ($line in $raw) {
-            $txt = $line.Trim()
-            if (-not $txt) { continue }
-            $cols = $txt -split "\s{2,}"
-            if ($cols.Count -lt 2) { continue }
-            $nombre = $cols[0]
-            $id     = $cols[1]
-            if (Es-NombreRaro $nombre) { continue }
-            if ($id -match '^\d+(\.\d+)?\s+(KB|MB|GB)\s*/' -or $id -match '^\d+%$') {
-                continue
-            }
-            $app = @{
-                Seccion = "Auto (winget)"
-                Nombre  = $nombre
-                ChocoId = ""
-                WingetId= $id
-            }
+        if ($gestor -eq "winget") 
+        {
+            Write-Host "Leyendo aplicaciones instaladas con winget..." -ForegroundColor Cyan
+            $raw = winget list --source winget | Select-Object -Skip 1
+            foreach ($line in $raw) {
+                $txt = $line.Trim()
+                if (-not $txt) { continue }
+                $cols = $txt -split "\s{2,}"
+                if ($cols.Count -lt 2) { continue }
+                $nombre = $cols[0]
+                $id     = $cols[1]
+                if (Es-NombreRaro $nombre) { continue }
+                if ($id -match '^\d+(\.\d+)?\s+(KB|MB|GB)\s*/' -or $id -match '^\d+%$') {
+                    continue
+                }
+              $app = @{
+                  Seccion = "Auto (winget)"
+                  Nombre  = $nombre
+                  ChocoId = ""
+                  WingetId= $id
+              }
             $nuevas += New-Object PSObject -Property $app
         }
-      }
     }
     elseif ($gestor -eq "choco") {
         Write-Host "Leyendo aplicaciones instaladas con Chocolatey..." -ForegroundColor Cyan
