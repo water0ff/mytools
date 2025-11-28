@@ -301,33 +301,23 @@ function UI-InitProgress([string]$titulo) {
 }
 function Buscar-Paquete {
   param([string]$gestor)
-
   cls
   Write-Host "=== Buscar e instalar paquete ($gestor) ===" -ForegroundColor Cyan
   $texto = Read-Host "Escribe el nombre del paquete a buscar"
-
   if ([string]::IsNullOrWhiteSpace($texto)) {
     Write-Host "Texto vacío. Cancelado." -ForegroundColor Yellow
     Pausa
     return
   }
-
   Write-Host "`nBuscando paquetes, espera..." -ForegroundColor Cyan
-
-  # ======================================
-  # WINGET SEARCH
-  # ======================================
   if ($gestor -eq "winget") {
       $resultado = winget search $texto --source winget | Select-Object -Skip 1
-
       if (-not $resultado) {
         Write-Host "No se encontraron paquetes." -ForegroundColor Yellow
         Pausa
         return
       }
-
       $lista = @()
-
       foreach ($linea in $resultado) {
         try {
           $cols = $linea -split "\s{2,}"
@@ -342,10 +332,6 @@ function Buscar-Paquete {
         } catch {}
       }
   }
-
-  # ======================================
-  # CHOCO SEARCH
-  # ======================================
   elseif ($gestor -eq "choco") {
       $raw = choco search $texto --limit-output --verbose | Where-Object {$_ -match '\|'}
       if (-not $raw) {
@@ -353,9 +339,7 @@ function Buscar-Paquete {
         Pausa
         return
       }
-
       $lista = @()
-
       foreach ($r in $raw) {
         $cols = $r -split "\|"
         if ($cols.Count -ge 2) {
@@ -369,11 +353,9 @@ function Buscar-Paquete {
   }
   cls
   Write-Host "=== Resultados de búsqueda ===`n" -ForegroundColor Cyan
-
   $index = 1
   $colCount = 4
   $perCol = [math]::Ceiling($lista.Count / $colCount)
-
   for ($i=0; $i -lt $perCol; $i++) {
     $row = ""
     for ($c=0; $c -lt $colCount; $c++) {
@@ -387,37 +369,68 @@ function Buscar-Paquete {
     }
     Write-Host $row
   }
-
   Write-Host "`nPuedes ver más detalles así:" -ForegroundColor DarkGray
   Write-Host " - Winget: winget show <Id>"
   Write-Host " - Choco: choco info <Id>`n"
+    while ($true) {
+    $sel = Read-Host "Escribe el número para instalar, 'D<num>' para ver detalles, o deja vacío para cancelar"
 
-  $sel = Read-Host "Escribe el número a instalar o deja vacío para cancelar"
+    # Cancelar
+    if (-not $sel) {
+      Write-Host "Cancelado." -ForegroundColor Yellow
+      Pausa
+      return
+    }
+    if ($sel -match '^[dD](\d+)$') {
+      $n   = [int]$matches[1]
+      $pos = $n - 1
 
-  if (-not $sel -or $sel -notmatch '^\d+$') {
-    Write-Host "Cancelado." -ForegroundColor Yellow
-    Pausa
-    return
+      if ($pos -lt 0 -or $pos -ge $lista.Count) {
+        Write-Host "Número inválido." -ForegroundColor Yellow
+        continue
+      }
+
+      $pkg = $lista[$pos]
+
+      Write-Host "`nDetalles de $($pkg.Name)  (ID: $($pkg.Id))`n" -ForegroundColor Cyan
+
+      if ($gestor -eq "winget") {
+        winget show $($pkg.Id)
+      } else {
+        choco info $($pkg.Id)
+      }
+      Write-Host ""
+      continue
+    }
+    if ($sel -match '^\d+$') {
+      $pos = [int]$sel - 1
+      if ($pos -lt 0 -or $pos -ge $lista.Count) {
+        Write-Host "Opción inválida." -ForegroundColor Yellow
+        continue
+      }
+
+      $pkg = $lista[$pos]
+
+      $conf = Read-Host "¿Instalar $($pkg.Name) (ID: $($pkg.Id))? (S/N)"
+      if ($conf -notmatch '^[sSyY]$') {
+        Write-Host "Instalación cancelada." -ForegroundColor Yellow
+        continue
+      }
+
+      Write-Host "`nInstalando: $($pkg.Name)  (ID: $($pkg.Id))" -ForegroundColor Green
+
+      if ($gestor -eq "winget") {
+        Winget-Instalar -ids @($pkg.Id)
+      } else {
+        Choco-Instalar -ids @($pkg.Id)
+      }
+
+      Pausa
+      return
+    }
+
+    Write-Host "Entrada no válida. Usa algo como: 3  o  D3" -ForegroundColor Yellow
   }
-
-  $pos = [int]$sel - 1
-  if ($pos -lt 0 -or $pos -ge $lista.Count) {
-    Write-Host "Opción inválida." -ForegroundColor Yellow
-    Pausa
-    return
-  }
-
-  $pkg = $lista[$pos]
-
-  Write-Host "`nInstalando: $($pkg.Name)  (ID: $($pkg.Id))" -ForegroundColor Green
-
-  if ($gestor -eq "winget") {
-    Winget-Instalar -ids @($pkg.Id)
-  } else {
-    Choco-Instalar -ids @($pkg.Id)
-  }
-
-  Pausa
 }
 function UI-RefreshProgress {
   $visible = $script:PaneHeight - 3
