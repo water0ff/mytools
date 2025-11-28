@@ -695,19 +695,29 @@ function Editar-Catalogo {
     UI-Hint "Este catálogo es portable: copia apps.json a otra PC para reinstalar lo mismo."
     $op = Ask "Opción"
     switch ($op) {
-        "1" {
-            Choco-Listar  # o Winget-Listar, da igual, solo es para mostrar índices
+            "1" {
+            Choco-Listar  # o Winget-Listar, solo para mostrar índices
             $sel  = Ask "Números a eliminar (ej. 1,3,5)"
             $nums = $sel -split "," | ForEach-Object { $_.Trim() } | Where-Object { $_ -match '^\d+$' }
-            if ($nums.Count -eq 0) { Write-Host "Nada que eliminar." -ForegroundColor Yellow; return }
-            $indices = $nums | ForEach-Object { [int]$_ - 1 } | Sort-Object -Descending
-            foreach ($idx in $indices) {
+            if ($nums.Count -eq 0) {
+                Write-Host "Nada que eliminar." -ForegroundColor Yellow
+                return
+            }
+            $indices = @()
+            foreach ($n in $nums) {
+                $idx = [int]$n - 1
                 if ($idx -ge 0 -and $idx -lt $Apps.Count) {
-                    Write-Host "Eliminando: $($Apps[$idx].Nombre)" -ForegroundColor DarkYellow
-                    $Apps.RemoveAt($idx)
+                    Write-Host "Marcando para eliminar: $($Apps[$idx].Nombre)" -ForegroundColor DarkYellow
+                    $indices += $idx
+                } else {
+                    Write-Host "Índice fuera de rango: $n" -ForegroundColor Yellow
                 }
             }
-            Guardar-Catalogo -Apps $Apps
+            if ($indices.Count -eq 0) {
+                Write-Host "No se encontraron índices válidos para eliminar." -ForegroundColor Yellow
+                return
+            }
+            Eliminar-AppsPorIndices -Indices $indices
             Write-Host "Catálogo actualizado." -ForegroundColor Green
         }
         "2" {
@@ -733,6 +743,22 @@ function Editar-Catalogo {
         }
         default { return }
     }
+}
+function Eliminar-AppsPorIndices {
+    param(
+        [int[]]$Indices
+    )
+    if (-not $Indices -or $Indices.Count -eq 0) { return }
+    $Indices = $Indices | Sort-Object -Unique
+    $nuevo = @()
+    for ($i = 0; $i -lt $Apps.Count; $i++) {
+        if ($Indices -notcontains $i) {
+            $nuevo += $Apps[$i]
+        }
+    }
+    $script:Apps = $nuevo
+    Set-Variable -Name Apps -Scope Script -Value $script:Apps
+    Guardar-Catalogo -Apps $Apps
 }
 function Agregar-App-Manual {
     UI-Titulo -Titulo "Agregar aplicación al catálogo" -Subtitulo "apps.json"
