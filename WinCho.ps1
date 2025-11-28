@@ -8,6 +8,39 @@ function Ask([string]$msg) {
     Write-Host $msg -ForegroundColor Yellow -NoNewline
     return ask ":"
 }
+function UI-GetWidth {
+  try { return [System.Console]::WindowWidth } catch { return 80 }
+}
+function UI-Separador {
+  param([string]$char = "=")
+  $w = UI-GetWidth
+  Write-Host ($char * $w) -ForegroundColor DarkCyan
+}
+function UI-Titulo {
+  param(
+    [Parameter(Mandatory=$true)][string]$Titulo,
+    [string]$Subtitulo
+  )
+  cls
+  $w   = UI-GetWidth
+  $top = ("=" * $w)
+  $bot = ("=" * $w)
+  Write-Host $top -ForegroundColor Cyan
+  $lineTitle = " $Titulo "
+  Write-Host ($lineTitle.PadRight($w)) -ForegroundColor Cyan
+  if ($Subtitulo) {
+    $lineSub = " $Subtitulo "
+    Write-Host ($lineSub.PadRight($w)) -ForegroundColor DarkCyan
+  }
+  Write-Host $bot -ForegroundColor Cyan
+  Write-Host ""
+}
+function UI-Hint {
+  param([string]$Texto)
+  if (-not [string]::IsNullOrWhiteSpace($Texto)) {
+    Write-Host $Texto -ForegroundColor DarkGray
+  }
+}
 function Mostrar-VersionPS {
   try {
     if ($PSVersionTable) {
@@ -346,9 +379,10 @@ function Buscar-Paquete {
   $offset   = 0        # índice inicial
   $total    = $lista.Count
   while ($true) {
-    cls
-    Write-Host "=== Resultados de búsqueda ($gestor) ===" -ForegroundColor Cyan
-    Write-Host "Mostrando resultados $($offset + 1)-$([Math]::Min($offset + $pageSize, $total)) de $total`n"
+    UI-Titulo -Titulo "Resultados de búsqueda" -Subtitulo "Gestor: $gestor"
+    Write-Host ("Mostrando resultados {0}-{1} de {2}" -f ($offset + 1), [Math]::Min($offset + $pageSize, $total), $total) `
+      -ForegroundColor White
+    Write-Host ""
     $end       = [Math]::Min($offset + $pageSize, $total)
     $indices   = $offset..($end - 1)
     $pageCount = $indices.Count
@@ -385,6 +419,8 @@ function Buscar-Paquete {
       if ($row2.Trim().Length -gt 0) { Write-Host $row2 }
       Write-Host ""
     }
+    UI-Separador "-"
+    UI-Hint "Puedes instalar, ver detalles o pedir más resultados sin salir de esta pantalla."
     Write-Host ""
     Write-Host "Opciones:" -ForegroundColor DarkGray
     Write-Host "  0) Cancelar"
@@ -662,20 +698,20 @@ function Winget-ActualizarTodo {
   Run-WithProgress -Title "winget: upgrade --all" -Command "winget upgrade --all --accept-package-agreements --accept-source-agreements --disable-interactivity"
 }
 function Elegir-Gestor {
-  cls
-  Write-Host "================2===================="
-  Write-Host "  Instalador de Aplicaciones (PS2.0) "
-  Write-Host "====================================="
+  UI-Titulo -Titulo "Instalador de Aplicaciones" -Subtitulo "Elegir gestor de paquetes"
+  Write-Host "Elige el gestor de paquetes:" -ForegroundColor White
   Write-Host ""
-  Write-Host "Elige el gestor de paquetes:"
-  Write-Host "  1) Chocolatey"
-  Write-Host "  2) winget"
-  Write-Host "  0) Salir"
-  $op = ask "Opción"
+  Write-Host "  1) Chocolatey" -ForegroundColor Cyan
+  Write-Host "  2) winget"     -ForegroundColor Cyan
+  Write-Host "  0) Salir"      -ForegroundColor Yellow
+  Write-Host ""
+  UI-Hint "Consejo: si no sabes cuál usar, empieza por Chocolatey (1)."
+  $op = Ask "Opción"
   if ($op -eq "1") { return "choco" }
   if ($op -eq "2") { return "winget" }
   if ($op -eq "0") { return $null }
   Write-Host "Opción no válida." -ForegroundColor Yellow
+  Pausa
   return (Elegir-Gestor)
 }
 function Asegurar-Gestor {
@@ -703,19 +739,21 @@ function Asegurar-Gestor {
 function Menu-Acciones {
   param([string]$gestor)
   while ($true) {
-  cls
-    Write-Host "`nGestor activo: $gestor" -ForegroundColor Green
-    Write-Host "Acciones:"
-    Write-Host "  1) Listar catálogo"
-    Write-Host "  2) Instalar TODO el catálogo"
-    Write-Host "  3) Instalar apps seleccionadas"
-    Write-Host "  4) Actualizar TODO (ya instaladas)"
-    Write-Host "  5) Actualizar PowerShell (7 recomendado / info 5.1)"
-    Write-Host "  6) Buscar paquete e instalar"
-    Write-Host "  9) Cambiar de gestor"
-    Write-Host "  0) Salir"
-    $acc = ask "Opción"
-
+    UI-Titulo -Titulo "Menú principal" -Subtitulo "Gestor activo: $gestor"
+    Write-Host "Acciones disponibles:" -ForegroundColor White
+    Write-Host ""
+    Write-Host "  1) Listar catálogo"                         -ForegroundColor Cyan
+    Write-Host "  2) Instalar TODO el catálogo"               -ForegroundColor Cyan
+    Write-Host "  3) Instalar apps seleccionadas"             -ForegroundColor Cyan
+    Write-Host "  4) Actualizar TODO (ya instaladas)"         -ForegroundColor Cyan
+    Write-Host "  5) Actualizar PowerShell (7 recomendado)"   -ForegroundColor Cyan
+    Write-Host "  6) Buscar paquete e instalar"               -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "  9) Cambiar de gestor"                       -ForegroundColor DarkYellow
+    Write-Host "  0) Salir"                                   -ForegroundColor Yellow
+    Write-Host ""
+    UI-Hint "Escribe el número de la opción y presiona [Enter]."
+    $acc = Ask "Opción"
     if ($acc -eq "1") {
       if ($gestor -eq "choco") { Choco-Listar } else { Winget-Listar }
       Pausa
@@ -730,14 +768,15 @@ function Menu-Acciones {
     }
     elseif ($acc -eq "3") {
       if ($gestor -eq "choco") { Choco-Listar } else { Winget-Listar }
-      $sel = ask "Escribe los números separados por coma (ej. 1,3,5)"
+      $sel  = Ask "Escribe los números separados por coma (ej. 1,3,5)"
       $nums = $sel -split "," | ForEach-Object { $_.Trim() } | Where-Object { $_ -match '^\d+$' }
+
       if ($nums.Count -eq 0) {
         Write-Host "Selección vacía o inválida." -ForegroundColor Yellow
       } else {
         $ids = @()
-        for ($i=0; $i -lt $nums.Count; $i++) {
-          $idx = [int]$nums[$i] - 1
+        foreach ($n in $nums) {
+          $idx = [int]$n - 1
           if ($idx -ge 0 -and $idx -lt $Apps.Count) {
             if ($gestor -eq "choco") { $ids += $Apps[$idx].ChocoId } else { $ids += $Apps[$idx].WingetId }
           }
@@ -759,7 +798,7 @@ function Menu-Acciones {
       Pausa
     }
     elseif ($acc -eq "6") {
-    Buscar-Paquete -gestor $gestor
+      Buscar-Paquete -gestor $gestor
     }
     elseif ($acc -eq "9") {
       return "cambiar"
@@ -769,6 +808,7 @@ function Menu-Acciones {
     }
     else {
       Write-Host "Opción no válida." -ForegroundColor Yellow
+      Pausa
     }
   }
 }
