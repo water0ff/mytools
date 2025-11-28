@@ -1,46 +1,113 @@
-🚀 Instalador de aplicaciones para Windows (PowerShell + Chocolatey / winget)
+# Instalador de Apps para Windows (WinCho)
 
-Script interactivo en PowerShell para instalar y actualizar aplicaciones esenciales en Windows usando Chocolatey o winget, pensado para funcionar incluso en PowerShell 2.0 y ayudar a migrar suave hacia PowerShell 7.
+Pequeño instalador en PowerShell para configurar rápidamente un entorno de Windows con Chocolatey/winget y apps esenciales.
 
-Te muestra un menú cómodo en consola, con barra de progreso y logs en vivo mientras instala.
+## 🔗 Menú
 
-✨ Características principales
+- [Descripción](#-descripción)
+- [Instalación rápida](#-instalación-rápida)
+- [Uso](#-uso)
+- [Requisitos](#-requisitos)
+- [Catálogo de aplicaciones](#-catálogo-de-aplicaciones)
+- [Notas de seguridad](#-notas-de-seguridad)
 
-✅ Funciona desde PowerShell 2.0 (ideal para equipos viejos / recién formateados).
+## 🚀 Instalación rápida
 
-🧰 Soporta dos gestores de paquetes:
+En PowerShell **como administrador**, ejecuta:
+🚀 WinCho – Instalador de Aplicaciones para Windows
+
+Instalador interactivo en PowerShell para configurar rápidamente un equipo Windows usando Chocolatey o winget, con soporte incluso para PowerShell 2.0, detección automática de versión, barra de progreso, y actualización fácil a PowerShell 7.
+
+🔗 Menú
+
+Descripción
+
+Instalación rápida
+
+Ejecutar desde archivo
+
+Uso del menú interactivo
+
+Catálogo incluido
+
+Requisitos
+
+Notas de seguridad
+
+Personalización
+
+Roadmap
+
+📌 Descripción
+
+WinCho es un script avanzado en PowerShell diseñado para automatizar:
+
+Instalación de aplicaciones esenciales.
+
+Actualización de software existente.
+
+Configuración automática de PowerShell 7 como predeterminado en Windows Terminal.
+
+Soporte dual:
 
 Chocolatey
 
 winget
 
-🧩 Catálogo de aplicaciones preconfiguradas, listas para instalar (navegador, utilidades, desarrollo, multimedia, gaming, runtimes .NET, etc.).
+Funcionamiento incluso en PowerShell 2.0 (ideal para equipos viejos o recién formateados).
 
-⚙️ Opción para instalar TODO el catálogo con un solo comando.
+Menú interactivo con instalador visual y panel de progreso dinámico.
 
-🎯 Opción para elegir solo algunas apps por número.
+🚀 Instalación rápida
 
-⬆️ Opción para actualizar todo lo ya instalado (upgrade masivo):
+Ejecuta este comando en PowerShell como Administrador:
 
-choco upgrade all -y
+irm bit.ly/WinCho | iex
 
-winget upgrade --all ...
 
-🧪 Utilidad integrada para instalar/actualizar PowerShell 7 y:
+Esto descargará y ejecutará la última versión del script directamente.
 
-Configurarlo como perfil predeterminado en Windows Terminal.
+📂 Ejecutar desde archivo
 
-Crear/ajustar settings.json de Windows Terminal de forma segura (con respaldo .bak).
+Descarga WinCho.ps1 desde este repositorio.
 
-👮 Verificación de que se está ejecutando como Administrador.
+Abre PowerShell como Administrador.
 
-📡 Ajuste de TLS para evitar problemas al descargar desde internet.
+Ejecútalo:
 
-🖥️ Panel de progreso en la parte inferior de la consola, que muestra en vivo la salida de choco / winget.
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+.\WinCho.ps1
 
-🧱 Catálogo de aplicaciones incluidas
+🕹 Uso del menú interactivo
 
-El arreglo $Apps incluye, entre otras:
+Al ejecutar WinCho tendrás algo como:
+
+============== r02 ====================
+  Instalador de Aplicaciones (PS2.0)
+======================================
+
+Elige el gestor de paquetes:
+  1) Chocolatey
+  2) winget
+  0) Salir
+
+
+Luego podrás:
+
+1) Listar catálogo
+2) Instalar TODO el catálogo
+3) Instalar apps seleccionadas
+4) Actualizar TODO (apps ya instaladas)
+5) Actualizar PowerShell (7 recomendado)
+9) Cambiar de gestor
+0) Salir
+
+
+El script muestra un panel visual de progreso con logs en vivo mientras instala.
+
+📦 Catálogo incluido
+
+El catálogo $Apps trae software organizado por categorías:
 
 🌐 Web / Nube
 
@@ -48,7 +115,7 @@ Google Chrome
 
 Google Drive
 
-💼 Comunicaciones / Productividad
+💬 Comunicación / Productividad
 
 Discord
 
@@ -58,17 +125,17 @@ TeamSpeak
 
 Thunderbird (ESR/estable según canal)
 
-🎮 Gaming / Launchers / Monitoreo
+🎮 Gaming / Monitoreo
 
 Steam
 
-EA app
+EA App
 
 MSI Afterburner
 
-RivaTuner Statistics Server (RTSS)
+RivaTuner Statistics Server
 
-🎧 Multimedia / Edición / Streaming
+🎥 Multimedia / Edición / Streaming
 
 VLC media player
 
@@ -88,7 +155,7 @@ yt-dlp
 
 Node.js LTS
 
-Python 3.12 (x64)
+Python 3.12
 
 PowerShell 7 (x64)
 
@@ -96,153 +163,71 @@ VirtualBox
 
 Tesseract OCR
 
-🧩 Runtimes / Sistema
+🧩 Sistema / Runtimes
 
 7-Zip
 
 .NET Framework 4.8
 
-.NET Desktop Runtime 9 (x64)
+.NET Desktop Runtime 9
 
-.NET Desktop Runtime 8 (x64)
+.NET Desktop Runtime 8
 
-Puedes extender fácilmente el catálogo editando el arreglo $Apps en el script.
+Puedes añadir o quitar apps modificando el arreglo $Apps.
 
-⚙️ Requisitos
+🧱 Requisitos
 
-🪟 Windows 10/11 (recomendado; algunas cosas funcionarán también en 7/8 con limitaciones).
+Windows 10/11 (ideal).
 
-📡 Conexión a internet para descargar paquetes.
+PowerShell como administrador.
 
-👮 PowerShell ejecutado como Administrador.
+Conexión a Internet.
 
-Opcional pero recomendado:
+Para winget:
 
-Windows Terminal
+App Installer (Microsoft Store).
 
-Permitir ejecución de scripts en la sesión actual.
+Para configuración automática de Windows Terminal:
 
-▶️ Cómo usarlo
-
-Descarga el script en una carpeta, por ejemplo:
-C:\Tools\instalador-apps.ps1
-
-Abre PowerShell como Administrador:
-
-Click derecho en el icono de PowerShell → “Ejecutar como administrador”.
-
-(Opcional) Permite scripts en la sesión actual:
-
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
-
-
-Ejecuta el script:
-
-cd C:\Tools
-.\instalador-apps.ps1
-
-
-Verás primero algo como:
-
-=====================================
-  PowerShell actual : 5.1.x (Desktop)
-=====================================
-
-
-Si tu versión es muy vieja, el script te lo advierte y te ofrece actualizar.
-
-🧭 Flujo del script
-
-🔍 Detecta la versión de PowerShell (Mostrar-VersionPS).
-
-👮 Verifica que seas Administrador (EsAdmin).
-
-🔐 Ajusta protocolo TLS si hace falta.
-
-📦 Te pide elegir un gestor:
-
-==============r02====================
-  Instalador de Aplicaciones (PS2.0)
-=====================================
-
-Elige el gestor de paquetes:
-  1) Chocolatey
-  2) winget
-  0) Salir
-
-
-Si el gestor elegido no está instalado:
-
-Para Chocolatey, lo descarga y configura (Instalar-Choco).
-
-Para winget, abre la Microsoft Store para instalar App Installer (Instalar-Winget).
-
-Una vez listo el gestor, aparece el menú principal:
-
-Gestor activo: choco
-Acciones:
-  1) Listar catálogo
-  2) Instalar TODO el catálogo
-  3) Instalar apps seleccionadas
-  4) Actualizar TODO (ya instaladas)
-  5) Actualizar PowerShell (7 recomendado / info 5.1)
-  9) Cambiar de gestor
-  0) Salir
-
-
-Durante las instalaciones, se abre un panel de progreso en la parte inferior de la consola, donde se van escribiendo las salidas de choco / winget en tiempo real.
-
-🧿 Actualización de PowerShell y Windows Terminal
-
-La opción “Actualizar PowerShell (5)” del menú:
-
-Si eliges instalar PowerShell 7:
-
-Usa choco o winget según el gestor activo.
-
-Llama a Set-WindowsTerminalDefaultPwsh para:
-
-Buscar pwsh.exe.
-
-Verificar que exista wt (Windows Terminal).
-
-Leer o crear settings.json.
-
-Crear o modificar un perfil "PowerShell 7".
-
-Establecerlo como defaultProfile.
-
-Generar respaldo de settings.json con timestamp.
-
-Si eliges información sobre PowerShell 5.1:
-
-Abre la página oficial de WMF 5.1 (https://aka.ms/wmf5download).
+Windows Terminal instalado.
 
 🔐 Notas de seguridad
 
-Este script no descarga instaladores directamente; delega la descarga e instalación en Chocolatey o winget, que usan sus propias fuentes y validaciones.
+El script no instala archivos externos directamente:
+usa Chocolatey o winget, que manejan su propia seguridad y firmas.
 
-Aun así, es buena práctica:
+Se crea un respaldo de settings.json de Windows Terminal antes de modificarlo.
 
-Revisar el catálogo $Apps.
-
-Confirmar que los IDs (ChocoId, WingetId) correspondan a paquetes confiables.
-
-Usarlo en entornos donde tengas control del equipo (no en producción sin pruebas).
+No se almacena ni envía información del usuario.
 
 🛠 Personalización
 
-Añadir o quitar aplicaciones del catálogo modificando el arreglo $Apps.
+Puedes modificar fácilmente:
 
-Cambiar títulos y textos de los menús según tu estilo.
+El catálogo $Apps.
 
-Ajustar la lógica de progreso o el alto del panel ($script:PaneHeight) si usas consolas más pequeñas.
+Los textos del menú.
 
-✅ Pendientes / Ideas futuras
+La apariencia del panel de progreso.
 
- Exportar un log a archivo con todo lo instalado / actualizado.
+Los instaladores disponibles (por ejemplo, añadir Scoop).
+
+🗺 Roadmap
+
+ Exportar logs a archivo.
+
+ Añadir verificación de versiones antes de instalar.
+
+ Modo silencioso (sin menú).
+
+ Añadir reinstalación y desinstalación automática.
 
  Añadir categorías personalizadas por usuario.
+
+❤️ Créditos
+
+Creado con PowerShell, paciencia y muchas reinstalaciones de Windows 😄
+Si te fue útil, ¡dale una estrella ⭐ al repositorio!
 
  Integrar comprobaciones de versión antes de intentar instalar.
 
