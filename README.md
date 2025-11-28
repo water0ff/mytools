@@ -8,7 +8,6 @@ Instalador interactivo en PowerShell para configurar rápidamente un equipo Wind
 
 - [Descripción](#-descripción)
 - [Instalación rápida](#-instalación-rápida)
-- [Ejecutar desde archivo](#-ejecutar-desde-archivo)
 - [Uso del menú interactivo](#-uso-del-menú-interactivo)
 - [Catálogo incluido](#-catálogo-incluido)
 - [Requisitos](#-requisitos)
@@ -41,18 +40,8 @@ irm bit.ly/WinCho | iex
 
 Descargará y ejecutará la última versión del instalador.
 
-📂 Ejecutar desde archivo
 
-Descarga WinCho.ps1 desde el repositorio.
-
-Abre PowerShell como Administrador.
-
-Ejecuta:
-
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
-.\WinCho.ps1
-
-🕹 Uso del menú interactivo
+## 🕹 Uso del menú interactivo
 
 Al iniciar WinCho verás algo como:
 
@@ -79,7 +68,7 @@ Luego aparece el menú de acciones:
 
 El script incluye un panel visual de progreso que muestra logs en tiempo real.
 
-📦 Catálogo incluido
+## 📦 Catálogo incluido
 
 El arreglo $Apps incluye aplicaciones listas para instalar:
 
@@ -147,7 +136,7 @@ Tesseract OCR
 
 .NET Desktop Runtime 8
 
-🧱 Requisitos
+## 🧱 Requisitos
 
 Windows 10/11
 
@@ -163,7 +152,7 @@ Para configurar Windows Terminal:
 
 Windows Terminal instalado
 
-🔐 Notas de seguridad
+## 🔐 Notas de seguridad
 
 El script usa Chocolatey y winget, ambos gestionan firmas y seguridad.
 
@@ -171,7 +160,7 @@ Se crea un respaldo de settings.json antes de modificar Windows Terminal.
 
 No se envían datos del usuario.
 
-🛠 Personalización
+## 🛠 Personalización
 
 Puedes editar fácilmente:
 
@@ -183,7 +172,7 @@ La lógica del panel de progreso
 
 Métodos de instalación (por ejemplo, añadir Scoop)
 
-🗺 Roadmap
+## 🗺 Roadmap
 
  Modo silencioso
 
