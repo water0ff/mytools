@@ -299,6 +299,126 @@ function UI-InitProgress([string]$titulo) {
     UI-WriteAt 0 ($script:PaneTopRow + $r) ""
   }
 }
+function Buscar-Paquete {
+  param([string]$gestor)
+
+  cls
+  Write-Host "=== Buscar e instalar paquete ($gestor) ===" -ForegroundColor Cyan
+  $texto = Read-Host "Escribe el nombre del paquete a buscar"
+
+  if ([string]::IsNullOrWhiteSpace($texto)) {
+    Write-Host "Texto vacío. Cancelado." -ForegroundColor Yellow
+    Pausa
+    return
+  }
+
+  Write-Host "`nBuscando paquetes, espera..." -ForegroundColor Cyan
+
+  # ======================================
+  # WINGET SEARCH
+  # ======================================
+  if ($gestor -eq "winget") {
+      $resultado = winget search $texto --source winget | Select-Object -Skip 1
+
+      if (-not $resultado) {
+        Write-Host "No se encontraron paquetes." -ForegroundColor Yellow
+        Pausa
+        return
+      }
+
+      $lista = @()
+
+      foreach ($linea in $resultado) {
+        try {
+          $cols = $linea -split "\s{2,}"
+          if ($cols.Count -ge 2) {
+            $obj = [PSCustomObject]@{
+              Name  = $cols[0]
+              Id    = $cols[1]
+              Info  = if ($cols.Count -ge 3) { $cols[2] } else { "" }
+            }
+            $lista += $obj
+          }
+        } catch {}
+      }
+  }
+
+  # ======================================
+  # CHOCO SEARCH
+  # ======================================
+  elseif ($gestor -eq "choco") {
+      $raw = choco search $texto --limit-output --verbose | Where-Object {$_ -match '\|'}
+      if (-not $raw) {
+        Write-Host "No se encontraron paquetes." -ForegroundColor Yellow
+        Pausa
+        return
+      }
+
+      $lista = @()
+
+      foreach ($r in $raw) {
+        $cols = $r -split "\|"
+        if ($cols.Count -ge 2) {
+          $lista += [PSCustomObject]@{
+            Name = $cols[0]
+            Id   = $cols[0]
+            Info = "Versión: " + $cols[1]
+          }
+        }
+      }
+  }
+  cls
+  Write-Host "=== Resultados de búsqueda ===`n" -ForegroundColor Cyan
+
+  $index = 1
+  $colCount = 4
+  $perCol = [math]::Ceiling($lista.Count / $colCount)
+
+  for ($i=0; $i -lt $perCol; $i++) {
+    $row = ""
+    for ($c=0; $c -lt $colCount; $c++) {
+      $idx = ($i + ($c * $perCol))
+      if ($idx -lt $lista.Count) {
+        $item = $lista[$idx]
+        $text = "[{0,2}] {1}" -f $index, $item.Name
+        $row += $text.PadRight(40)
+        $index++
+      }
+    }
+    Write-Host $row
+  }
+
+  Write-Host "`nPuedes ver más detalles así:" -ForegroundColor DarkGray
+  Write-Host " - Winget: winget show <Id>"
+  Write-Host " - Choco: choco info <Id>`n"
+
+  $sel = Read-Host "Escribe el número a instalar o deja vacío para cancelar"
+
+  if (-not $sel -or $sel -notmatch '^\d+$') {
+    Write-Host "Cancelado." -ForegroundColor Yellow
+    Pausa
+    return
+  }
+
+  $pos = [int]$sel - 1
+  if ($pos -lt 0 -or $pos -ge $lista.Count) {
+    Write-Host "Opción inválida." -ForegroundColor Yellow
+    Pausa
+    return
+  }
+
+  $pkg = $lista[$pos]
+
+  Write-Host "`nInstalando: $($pkg.Name)  (ID: $($pkg.Id))" -ForegroundColor Green
+
+  if ($gestor -eq "winget") {
+    Winget-Instalar -ids @($pkg.Id)
+  } else {
+    Choco-Instalar -ids @($pkg.Id)
+  }
+
+  Pausa
+}
 function UI-RefreshProgress {
   $visible = $script:PaneHeight - 3
   $start   = [Math]::Max(0, $script:PaneLines.Count - $visible)
@@ -527,6 +647,7 @@ function Menu-Acciones {
     Write-Host "  3) Instalar apps seleccionadas"
     Write-Host "  4) Actualizar TODO (ya instaladas)"
     Write-Host "  5) Actualizar PowerShell (7 recomendado / info 5.1)"
+    Write-Host "  6) Buscar paquete e instalar"
     Write-Host "  9) Cambiar de gestor"
     Write-Host "  0) Salir"
     $acc = Read-Host "Opción"
@@ -572,6 +693,9 @@ function Menu-Acciones {
     elseif ($acc -eq "5") {
       Actualizar-PowerShell -gestor $gestor
       Pausa
+    }
+    elseif ($acc -eq "6") {
+    Buscar-Paquete -gestor $gestor
     }
     elseif ($acc -eq "9") {
       return "cambiar"
